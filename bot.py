@@ -10,7 +10,7 @@ load_dotenv()
 # --- CONFIGURATION & CONSTANTS ---
 GUILD_ID = 1522607630219087892             # Server ID
 MODMAIL_CATEGORY_ID = 1540986934808027137  # Ticket Category ID
-STAFF_ROLE_ID = 1540986727538364436        # Staff Role ID allowed to reply & ping
+STAFF_ROLE_ID = 1540986727538364436        # Staff Role ID
 EMBED_COLOR = discord.Color.from_str("#041B6B")
 
 # Random Scandinavian names for .areply
@@ -51,7 +51,7 @@ SUBSCRIBERS = load_json("subscribers.json")
 
 @bot.event
 async def on_ready():
-    print(f"✅ SAS Chatbot logged in as {bot.user}")
+    print(f"✅ SAS Chatbot active as {bot.user}")
 
 
 # --- UI COMPONENTS FOR TICKET CREATION ---
@@ -84,10 +84,10 @@ class DepartmentSelect(discord.ui.Select):
 
         ticket_channel = await category.create_text_channel(name=channel_name, overwrites=overwrites)
 
-        # Ping staff role upon ticket creation inside ticket channel
+        # Ping staff role upon ticket creation
         staff_ping = f"<@&{STAFF_ROLE_ID}>" if STAFF_ROLE_ID else ""
 
-        # Post initial Embed inside the ticket channel for staff
+        # Post initial embed in ticket channel for staff
         staff_embed = discord.Embed(
             title="New Helpline Ticket Created",
             description=(
@@ -206,12 +206,11 @@ async def on_message(message: discord.Message):
         await message.channel.send(embed=confirm_embed, view=ConfirmationView(message))
         return
 
-    # 2. ALWAYS PROCESS COMMANDS IN GUILD CHANNELS FIRST
+    # 2. PROCESS STANDARD COMMANDS IN GUILD CHANNELS
     await bot.process_commands(message)
 
     # 3. DYNAMIC SNIPPET TRIGGER (.snippet_name) INSIDE TICKETS
     if message.content.startswith(".") and message.channel.name.startswith("ticket-"):
-        # Don't trigger snippets if it was an actual registered command like .reply
         ctx = await bot.get_context(message)
         if ctx.valid:
             return
@@ -461,7 +460,7 @@ async def close_ticket(ctx):
             del SUBSCRIBERS[chan_id]
             save_json("subscribers.json", SUBSCRIBERS)
 
-        await ctx.send("Closing ticket in 5 seconds...")
-        await ctx.channel.delete(delay=5)
+        # Immediately delete ticket channel
+        await ctx.channel.delete()
 
 bot.run(os.getenv("DISCORD_TOKEN"))
