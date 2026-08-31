@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURATION & CONSTANTS ---
-GUILD_ID = 1522607630219087892             # Your Server ID
+GUILD_ID = 1522607630219087892             # Server ID
 MODMAIL_CATEGORY_ID = 1540986934808027137  # Ticket Category ID
-STAFF_ROLE_ID = 1540986727538364436        # Staff Role ID allowed to reply
+STAFF_ROLE_ID = 1540986727538364436        # Staff Role ID allowed to reply & ping
 EMBED_COLOR = discord.Color.from_str("#041B6B")
 
 # Random Scandinavian names for .areply
@@ -52,16 +52,6 @@ SUBSCRIBERS = load_json("subscribers.json")
 @bot.event
 async def on_ready():
     print(f"✅ SAS Chatbot logged in as {bot.user}")
-    guild = bot.get_guild(GUILD_ID)
-    if guild:
-        print(f"✅ Connected to Server: {guild.name} ({guild.id})")
-        category = guild.get_channel(MODMAIL_CATEGORY_ID)
-        if category:
-            print(f"✅ Found Modmail Category: {category.name}")
-        else:
-            print("❌ ERROR: Could not find Modmail Category ID! Check channel permissions.")
-    else:
-        print("❌ ERROR: Could not find Server ID! Make sure the bot is invited to the server.")
 
 
 # --- UI COMPONENTS FOR TICKET CREATION ---
@@ -83,7 +73,6 @@ class DepartmentSelect(discord.ui.Select):
         category = guild.get_channel(MODMAIL_CATEGORY_ID)
         staff_role = guild.get_role(STAFF_ROLE_ID)
 
-        # Create private ticket channel for the user
         channel_name = f"ticket-{interaction.user.id}"
         
         overwrites = {
@@ -95,8 +84,8 @@ class DepartmentSelect(discord.ui.Select):
 
         ticket_channel = await category.create_text_channel(name=channel_name, overwrites=overwrites)
 
-        # Notify user that ticket is successfully created
-        await interaction.followup.send(f"✅ Ticket opened under **{selected_dept}**. A member of our team will assist you shortly!", ephemeral=False)
+        # Ping staff role upon ticket creation inside ticket channel
+        staff_ping = f"<@&{STAFF_ROLE_ID}>" if STAFF_ROLE_ID else ""
 
         # Post initial Embed inside the ticket channel for staff
         staff_embed = discord.Embed(
@@ -110,7 +99,7 @@ class DepartmentSelect(discord.ui.Select):
             timestamp=discord.utils.utcnow()
         )
         staff_embed.set_thumbnail(url=interaction.user.display_avatar.url)
-        await ticket_channel.send(embed=staff_embed)
+        await ticket_channel.send(content=staff_ping, embed=staff_embed)
 
         # Forward initial attachments if present
         if self.initial_message.attachments:
@@ -165,28 +154,23 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    # 1. HANDLE USER DMs (Opening Ticket / Sending Messages to Staff)
+    # 1. HANDLE USER DMs
     if isinstance(message.channel, discord.DMChannel):
-        print(f"📩 DM received from {message.author}: {message.content}")
-
         if str(message.author.id) in BANNED_USERS:
             await message.channel.send("You are currently blocked from creating support tickets.")
             return
 
         guild = bot.get_guild(GUILD_ID)
         if not guild:
-            print("❌ Server ID mismatch or bot not in server.")
             return
 
         category = guild.get_channel(MODMAIL_CATEGORY_ID)
         if not category:
-            print("❌ Category ID mismatch or bot lacks permission to access it.")
             return
 
         channel_name = f"ticket-{message.author.id}"
         existing_channel = discord.utils.get(category.text_channels, name=channel_name)
 
-        # Existing ticket: Forward message and ping subscribed staff
         if existing_channel:
             dm_embed = discord.Embed(
                 description=message.content,
@@ -208,7 +192,6 @@ async def on_message(message: discord.Message):
             await message.add_reaction("✅")
             return
 
-        # No active ticket: Step 1 Confirmation Embed
         confirm_embed = discord.Embed(
             description=(
                 "** <:SASTail:1541035197838131261>  Almost There!**\n"
@@ -223,15 +206,14 @@ async def on_message(message: discord.Message):
         await message.channel.send(embed=confirm_embed, view=ConfirmationView(message))
         return
 
-    # 2. PROCESS STANDARD COMMANDS
-    ctx = await bot.get_context(message)
-    if ctx.valid:
-        await bot.invoke(ctx)
-        return
+    # 2. ALWAYS PROCESS COMMANDS IN GUILD CHANNELS FIRST
+    await bot.process_commands(message)
 
     # 3. DYNAMIC SNIPPET TRIGGER (.snippet_name) INSIDE TICKETS
     if message.content.startswith(".") and message.channel.name.startswith("ticket-"):
-        if not any(role.id == STAFF_ROLE_ID for role in message.author.roles):
+        # Don't trigger snippets if it was an actual registered command like .reply
+        ctx = await bot.get_context(message)
+        if ctx.valid:
             return
 
         trigger = message.content[1:].split()[0].lower()
@@ -265,12 +247,17 @@ async def on_message(message: discord.Message):
                 pass
 
 
-# --- STAFF TICKET COMMANDS ---
+# --- STAFF CHECK PERMISSION ---
 
 def is_staff():
     async def predicate(ctx):
-        return any(role.id == STAFF_ROLE_ID for role in ctx.author.roles)
+        if not isinstance(ctx.author, discord.Member):
+            return False
+        return any(role.id == STAFF_ROLE_ID for role in ctx.author.roles) or ctx.author.guild_permissions.administrator
     return commands.check(predicate)
+
+
+# --- STAFF TICKET COMMANDS ---
 
 @bot.command(name="reply")
 @is_staff()
