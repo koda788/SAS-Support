@@ -13,6 +13,9 @@ MODMAIL_CATEGORY_ID = 1540986934808027137  # Ticket Category ID
 STAFF_ROLE_ID = 1540986727538364436        # Staff Role ID
 EMBED_COLOR = discord.Color.from_str("#041B6B")
 
+# Custom SAS5 Emoji
+SAS5_EMOJI = discord.PartialEmoji(name="SAS5", id=1542545243939803320)
+
 # Random Scandinavian names for .areply
 SCANDINAVIAN_NAMES = [
     "Sven Svensson", "Astrid Lindgren", "Freja Norberg", 
@@ -122,7 +125,7 @@ class ConfirmationView(discord.ui.View):
 
     @discord.ui.button(
         style=discord.ButtonStyle.secondary, 
-        emoji=discord.PartialEmoji(name="SAS5", id=1542545243939803320)
+        emoji=SAS5_EMOJI
     )
     async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         dept_embed = discord.Embed(
@@ -187,7 +190,9 @@ async def on_message(message: discord.Message):
                 pings = " ".join([f"<@{uid}>" for uid in SUBSCRIBERS[str_chan_id]])
 
             await existing_channel.send(content=pings if pings else None, embed=dm_embed)
-            await message.add_reaction("✅")
+            
+            # React with custom SAS5 emoji on incoming message
+            await message.add_reaction(SAS5_EMOJI)
             return
 
         confirm_embed = discord.Embed(
@@ -458,7 +463,6 @@ async def close_ticket(ctx):
             del SUBSCRIBERS[chan_id]
             save_json("subscribers.json", SUBSCRIBERS)
 
-        # Immediately deletes the channel
         await ctx.channel.delete()
 
 bot.run(os.getenv("DISCORD_TOKEN"))
