@@ -84,10 +84,10 @@ class DepartmentSelect(discord.ui.Select):
 
         ticket_channel = await category.create_text_channel(name=channel_name, overwrites=overwrites)
 
-        # Ping staff role upon ticket creation
+        # Ping staff role upon ticket creation inside ticket channel
         staff_ping = f"<@&{STAFF_ROLE_ID}>" if STAFF_ROLE_ID else ""
 
-        # Post initial embed in ticket channel for staff
+        # Post initial Embed inside ticket channel for staff
         staff_embed = discord.Embed(
             title="New Helpline Ticket Created",
             description=(
@@ -121,8 +121,7 @@ class ConfirmationView(discord.ui.View):
         self.initial_message = initial_message
 
     @discord.ui.button(
-        label="Confirm", 
-        style=discord.ButtonStyle.success, 
+        style=discord.ButtonStyle.secondary, 
         emoji=discord.PartialEmoji(name="SAS5", id=1542545243939803320)
     )
     async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -138,8 +137,7 @@ class ConfirmationView(discord.ui.View):
         self.stop()
 
     @discord.ui.button(
-        label="Cancel", 
-        style=discord.ButtonStyle.danger, 
+        style=discord.ButtonStyle.secondary, 
         emoji=discord.PartialEmoji(name="SAS4", id=1542545226642628780)
     )
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -460,7 +458,7 @@ async def close_ticket(ctx):
             del SUBSCRIBERS[chan_id]
             save_json("subscribers.json", SUBSCRIBERS)
 
-        # Immediately delete ticket channel
+        # Immediately deletes the channel
         await ctx.channel.delete()
 
 bot.run(os.getenv("DISCORD_TOKEN"))
