@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURATION & CONSTANTS ---
-GUILD_ID = 123456789012345678              # Replace with your Server ID
+GUILD_ID = 1522607630219087892             # Your Server ID
 MODMAIL_CATEGORY_ID = 1540986934808027137  # Ticket Category ID
 STAFF_ROLE_ID = 1540986727538364436        # Staff Role ID allowed to reply
 EMBED_COLOR = discord.Color.from_str("#041B6B")
@@ -51,7 +51,17 @@ SUBSCRIBERS = load_json("subscribers.json")
 
 @bot.event
 async def on_ready():
-    print(f"Modmail bot active as {bot.user}")
+    print(f"✅ SAS Chatbot logged in as {bot.user}")
+    guild = bot.get_guild(GUILD_ID)
+    if guild:
+        print(f"✅ Connected to Server: {guild.name} ({guild.id})")
+        category = guild.get_channel(MODMAIL_CATEGORY_ID)
+        if category:
+            print(f"✅ Found Modmail Category: {category.name}")
+        else:
+            print("❌ ERROR: Could not find Modmail Category ID! Check channel permissions.")
+    else:
+        print("❌ ERROR: Could not find Server ID! Make sure the bot is invited to the server.")
 
 
 # --- UI COMPONENTS FOR TICKET CREATION ---
@@ -76,17 +86,17 @@ class DepartmentSelect(discord.ui.Select):
         # Create private ticket channel for the user
         channel_name = f"ticket-{interaction.user.id}"
         
-        # Set channel permissions: Staff role can read/send, @everyone denied
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            staff_role: discord.PermissionOverwrite(read_messages=True, send_messages=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
+        if staff_role:
+            overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
         ticket_channel = await category.create_text_channel(name=channel_name, overwrites=overwrites)
 
         # Notify user that ticket is successfully created
-        await interaction.followup.send(f"✅ Ticket opened under **{selected_dept}**. Staff will be with you shortly!", ephemeral=False)
+        await interaction.followup.send(f"✅ Ticket opened under **{selected_dept}**. A member of our team will assist you shortly!", ephemeral=False)
 
         # Post initial Embed inside the ticket channel for staff
         staff_embed = discord.Embed(
@@ -102,7 +112,7 @@ class DepartmentSelect(discord.ui.Select):
         staff_embed.set_thumbnail(url=interaction.user.display_avatar.url)
         await ticket_channel.send(embed=staff_embed)
 
-        # Forward any initial attachments if present
+        # Forward initial attachments if present
         if self.initial_message.attachments:
             for attachment in self.initial_message.attachments:
                 await ticket_channel.send(attachment.url)
@@ -157,12 +167,22 @@ async def on_message(message: discord.Message):
 
     # 1. HANDLE USER DMs (Opening Ticket / Sending Messages to Staff)
     if isinstance(message.channel, discord.DMChannel):
+        print(f"📩 DM received from {message.author}: {message.content}")
+
         if str(message.author.id) in BANNED_USERS:
             await message.channel.send("You are currently blocked from creating support tickets.")
             return
 
         guild = bot.get_guild(GUILD_ID)
+        if not guild:
+            print("❌ Server ID mismatch or bot not in server.")
+            return
+
         category = guild.get_channel(MODMAIL_CATEGORY_ID)
+        if not category:
+            print("❌ Category ID mismatch or bot lacks permission to access it.")
+            return
+
         channel_name = f"ticket-{message.author.id}"
         existing_channel = discord.utils.get(category.text_channels, name=channel_name)
 
@@ -179,7 +199,6 @@ async def on_message(message: discord.Message):
             if message.attachments:
                 dm_embed.set_image(url=message.attachments[0].url)
 
-            # Ping subscribers
             str_chan_id = str(existing_channel.id)
             pings = ""
             if str_chan_id in SUBSCRIBERS and SUBSCRIBERS[str_chan_id]:
